@@ -1169,8 +1169,29 @@ namespace STREDIT
                             }
                             else
                             {
-                                DLOG.WriteLine("[INFO] Could not find correct AoB :|");
-                                break;
+                                // for chinese maplestory aob
+                                IPAoB = ByteStringToArray(
+                                    "68 24 21 00 00 " + // Port
+                                    "68 AA AA AA 01 " + // Addr of IP
+                                    "B9 AA AA AA 01 " // ?
+                                    );
+                                if (FindAoBInFile(br, posCurrent, IPAoB, 0xAA, true))
+                                {
+                                    DLOG.WriteLine("[INFO] Mode 1.");
+                                    this.Invoke((MethodInvoker)delegate
+                                    {
+                                        lvIPs.Columns[1].Width = 80;
+                                        tmp_lblPort.Visible = tmp_udPort.Visible = false;
+                                    });
+                                    mode = 3;
+                                    break;
+                                }
+                                else
+                                {
+                                    DLOG.WriteLine("[INFO] Could not find correct AoB :|");
+                                    break;
+                                }
+                                
                             }
                         }
                     }
@@ -1343,6 +1364,81 @@ namespace STREDIT
                                             }
                                         }
                                     }
+                                }
+                                else if (mode == 3)
+                                {
+                                    // for Chinese Maplestory
+                                    br.ReadByte();
+                                    int portpos = (int)br.BaseStream.Position;
+                                    port = br.ReadUInt32();
+                                    if (port < 0 || port > 0xFFFF)
+                                    {
+                                        DLOG.WriteLine("[WTF] Strange port found! {0}", port);
+                                        break;
+                                    }
+                                    br.ReadByte();
+
+                                    uint ip_pos = br.ReadUInt32();
+                                    var tmp = br.BaseStream.Position;
+                                    DLOG.WriteLine("[DEBUG] {0:X8} > {1:X8}", ip_pos, ip_pos - FileOffset);
+
+                                    br.BaseStream.Position = ip_pos - FileOffset;
+                                    DebugBuffer(br);
+                                    string ip = GetString(br, false);
+                                    int len = ip.Length;
+                                    while (br.ReadByte() == 0x00)
+                                    {
+                                        len += 1;
+                                    }
+                                    br.BaseStream.Position = tmp;
+
+                                    DLOG.WriteLine("[WIN] IP {0} found! File location: {1:X8} ({3}:{2})", i, ip_pos, port, ip);
+
+                                    this.Invoke((MethodInvoker)delegate
+                                    {
+                                        var lvi = new ListViewItem(new string[] { ip, port.ToString() });
+                                        lvi.Tag = new object[] { (int)(ip_pos - FileOffset), len, (int)portpos, thisIPStartsAt, IPAoB.Length };
+                                        lvIPs.Items.Add(lvi);
+                                    });
+                                    {
+                                        var tmpIPOffset = (int)(ip_pos - FileOffset);
+                                        /*
+                                         * IP1 = 0
+                                         * IP2 = IP1 - 24
+                                         * IP3 = IP2 - 24
+                                         * */
+
+                                        if (____ip_declaration_pos == 0)
+                                        {
+                                            ____ip_declaration_pos = tmpIPOffset;
+                                            ____ip_max_len = len;
+                                        }
+                                        else
+                                        {
+                                            var offsets = Math.Abs(tmpIPOffset - ____ip_declaration_pos);
+                                            if (offsets == len + 1) // len + 1, because the last byte is set to 0
+                                            {
+                                                // Correct offset
+                                                if (____ip_declaration_pos > tmpIPOffset) // Last was above other
+                                                {
+                                                    ____ip_declaration_pos = tmpIPOffset;
+                                                    ____ip_max_len += offsets;
+                                                }
+                                                else if (____ip_declaration_pos < tmpIPOffset) // Last was underneath other
+                                                {
+                                                    // IP1 = 0 , len 12
+                                                    // IP2 = 13 , len 12
+                                                    // Result = 13 + len
+                                                    ____ip_max_len = offsets + len;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("Not correct offset");
+                                            }
+                                        }
+                                    }
+                                    br.ReadBytes(34);
                                 }
                                 posCurrent = (uint)br.BaseStream.Position;
                             }

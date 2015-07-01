@@ -30,6 +30,7 @@ namespace STREDIT
                 case 1: ChosenEncoding = 28591; break; // European
                 case 2: ChosenEncoding = 950; break; // Chinese Traditional (Big5)
                 case 3: ChosenEncoding = 932; break; // Japanese
+                case 4: ChosenEncoding = 936; break; // Chinese Simplified
             }
         }
 
